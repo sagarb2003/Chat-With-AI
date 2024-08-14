@@ -68,7 +68,7 @@ export default function Home() {
           />
           <p
             onClick={generateButtonHandler}
-            className="text-5xl cursor-pointer bg-slate-600 pl-1 text-white w-12 h-12 rounded-full"
+            className="text-5xl cursor-pointer bg-slate-500 pl-1 text-white w-12 h-12 rounded-full"
           >
             ↑
           </p>
