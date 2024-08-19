@@ -1,7 +1,8 @@
-"use client";
+"use client"
 
-import axios from "axios";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface ChatMessage {
   role: "user" | "aiResponse";
@@ -12,48 +13,40 @@ export default function Home() {
   const [userQuestion, setUserQuestion] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loader, setLoader] = useState<boolean>(false);
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
-  async function generateButtonHandler() {
-    if (!userQuestion?.trim()) return;
+  const generateButtonHandler = async () => {
+    if (!userQuestion.trim()) return;
     setMessages((prevMessages) => [
       ...prevMessages,
       { role: "user", text: userQuestion },
+      { role: "aiResponse", text: "" }, 
     ]);
+
     setLoader(true);
 
-    try {
-      const response = await axios({
-        url: `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.NEXT_PUBLIC_API_KEY}`,
-        method: "POST",
-        data: {
-          contents: [{ role: "user", parts: [{ text: userQuestion }] }],
-        },
-      });
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        {
-          role: "aiResponse",
-          text: response.data.candidates[0].content.parts[0].text,
-        },
-      ]);
-    } catch (error) {
-      console.error("Error generating response:", error);
-    } finally {
-      setLoader(false);
-      setUserQuestion("");
-    }
-  }
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY!;
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  const truncateText = (text: string) => {
-    const words = text.split(" ");
-    if (words.length > 50) {
-      return words.slice(0, 50).join(" ") + "...";
+    const result = await model.generateContentStream(userQuestion);
+
+    for await (const chunk of result.stream) {
+      const chunkText = chunk.text();
+      setMessages((prevMessages) => {
+        // console.log(prevMessages);
+        return prevMessages.map((message, index) =>
+          index === prevMessages.length - 1
+            ? { ...message, text: message.text + chunkText }
+            : message
+        );
+      });
     }
-    return text;
+
+
+    setLoader(false);
+    setUserQuestion("");
   };
-  console.log(process.env.API_KEY);
-  
+
   return (
     <>
       <div className="flex flex-col items-center justify-center mt-4">
@@ -91,23 +84,7 @@ export default function Home() {
                 }`}
               >
                 {message.role === "aiResponse" ? (
-                  <div>
-                    {expandedIndex === index
-                      ? message.text
-                      : truncateText(message.text)}
-                    {message.text.length > 50 && (
-                      <button
-                        onClick={() => {
-                          expandedIndex === index
-                            ? setExpandedIndex(null)
-                            : setExpandedIndex(index);
-                        }}
-                        className="text-blue-600 ml-2"
-                      >
-                        {expandedIndex === index ? "Read Less" : "Read More"}
-                      </button>
-                    )}
-                  </div>
+                  <ReactMarkdown>{message.text}</ReactMarkdown>
                 ) : (
                   message.text
                 )}
